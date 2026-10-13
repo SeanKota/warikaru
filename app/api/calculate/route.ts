@@ -28,16 +28,23 @@ export async function OPTIONS() {
  */
 export async function GET(req: NextRequest) {
   let rawSearch = req.nextUrl.search;
+  if (rawSearch.startsWith('?')) {
+    rawSearch = rawSearch.slice(1);
+  }
 
-  // ChatGPT等のエンコードミス対策 (%26 を & に自動復元)
-  if (rawSearch.includes('%26') && !rawSearch.includes('&')) {
-    rawSearch = rawSearch.replace(/%26/g, '&');
+  // ChatGPT等のエンコードミス対策 (%26 や %3D が含まれている場合はデコード)
+  if (rawSearch.includes('%26') || rawSearch.includes('%3D') || rawSearch.includes('%3d')) {
+    try {
+      rawSearch = decodeURIComponent(rawSearch);
+    } catch {
+      // ignore
+    }
   }
 
   // クエリパラメータで計算リクエストが来た場合
-  if (rawSearch && rawSearch.length > 1) {
+  if (rawSearch && rawSearch.length > 0) {
     try {
-      const searchParams = new URLSearchParams(rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch);
+      const searchParams = new URLSearchParams(rawSearch);
       const format = searchParams.get('format');
       const accept = req.headers.get('accept') || '';
 

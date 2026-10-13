@@ -2,7 +2,7 @@ import { CalculateRequest, Condition, Payment, RoundingUnit, RoundingMode } from
 
 /**
  * URLクエリパラメータやURLエンコードされた文字列から柔軟に CalculateRequest を構築する。
- * ChatGPTなどのAIが `&` を `%26` に誤エンコードした場合でも安全にフォールバックして解析する。
+ * ChatGPTなどのAIがクエリ全体（& や = も含む）を誤エンコードした場合でも安全にデコードして解析する。
  */
 export function parseQueryToCalculateRequest(queryStringOrParams: string | URLSearchParams): CalculateRequest {
   let searchParams: URLSearchParams;
@@ -12,13 +12,30 @@ export function parseQueryToCalculateRequest(queryStringOrParams: string | URLSe
     if (cleanQuery.startsWith('?')) {
       cleanQuery = cleanQuery.substring(1);
     }
-    // ChatGPT等のエンコードミス対策: %26 を & にデコード
-    if (cleanQuery.includes('%26') && !cleanQuery.includes('&')) {
-      cleanQuery = cleanQuery.replace(/%26/g, '&');
+    // ChatGPT等の過剰エンコード対策 (%26 や %3D が含まれている場合はデコード)
+    if (cleanQuery.includes('%26') || cleanQuery.includes('%3D') || cleanQuery.includes('%3d')) {
+      try {
+        cleanQuery = decodeURIComponent(cleanQuery);
+      } catch {
+        // decode失敗時はそのまま
+      }
     }
     searchParams = new URLSearchParams(cleanQuery);
   } else {
-    searchParams = queryStringOrParams;
+    // URLSearchParamsが渡された場合でも、keyに = や & が含まれている可能性をチェック
+    const rawEntries: [string, string][] = [];
+    queryStringOrParams.forEach((val, key) => {
+      if (key.includes('=') || key.includes('&') || key.includes('%26') || key.includes('%3D')) {
+        const decoded = decodeURIComponent(`${key}=${val}`);
+        const sub = new URLSearchParams(decoded);
+        sub.forEach((subVal, subKey) => rawEntries.push([subKey, subVal]));
+      } else {
+        rawEntries.push([key, val]);
+      }
+    });
+
+    searchParams = new URLSearchParams();
+    rawEntries.forEach(([k, v]) => searchParams.set(k, v));
   }
 
   // 1. ?data=<JSON> パターン
@@ -32,13 +49,10 @@ export function parseQueryToCalculateRequest(queryStringOrParams: string | URLSe
   }
 
   // 2. 個別クエリパラメータパターン
-  // membersParam の中に & が混ざっている場合の救済
   let membersStr = searchParams.get('members') || '';
   if (membersStr.includes('&')) {
-    // 誤って members パラメータの中に後続パラメータが取り込まれてしまった場合
     const subParams = new URLSearchParams(membersStr);
     membersStr = membersStr.split('&')[0];
-    // 他のパラメータをマージ
     subParams.forEach((val, key) => {
       if (!searchParams.has(key)) {
         searchParams.set(key, val);
@@ -51,7 +65,7 @@ export function parseQueryToCalculateRequest(queryStringOrParams: string | URLSe
   const paymentsStr = searchParams.get('payments') || '';
   const payments: Payment[] = paymentsStr.split(',').filter(Boolean).map((item) => {
     const parts = item.split(':').map((s) => decodeURIComponent(s.trim()));
-    const paidBy = parts[0] || members[0] || 'Aさん';
+    const paidBy = parts[0] || members[0] || 'A';
     const amount = parseInt(parts[1], 10) || 0;
     const description = parts[2] || undefined;
     return { paidBy, amount, description };
@@ -101,10 +115,10 @@ export function parseQueryToCalculateRequest(queryStringOrParams: string | URLSe
   const mode = (searchParams.get('mode') || 'round') as RoundingMode;
 
   return {
-    members: members.length > 0 ? members : ['Aさん', 'Bさん', 'Cさん'],
+    members: members.length > 0 ? members : ['A', 'B', 'C'],
     payments: payments.length > 0 ? payments : [
-      { paidBy: 'Aさん', amount: 12000, description: '一次会' },
-      { paidBy: 'Bさん', amount: 3000, description: 'タクシー' }
+      { paidBy: 'A', amount: 4000, description: '一次会' },
+      { paidBy: 'B', amount: 3000, description: 'タクシー' }
     ],
     conditions,
     options: {
