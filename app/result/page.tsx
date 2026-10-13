@@ -23,6 +23,24 @@ async function ResultContent({ searchParams }: ResultPageProps) {
   const calcReq = parseQueryToCalculateRequest(urlSearchParams);
   const result = calculateSettlement(calcReq);
 
+  const cleanParams = new URLSearchParams();
+  if (calcReq.members?.length) cleanParams.set('members', calcReq.members.join(','));
+  if (calcReq.payments?.length) {
+    cleanParams.set(
+      'payments',
+      calcReq.payments.map((p) => `${p.paidBy}:${p.amount}${p.description ? `:${p.description}` : ''}`).join(',')
+    );
+  }
+  if (calcReq.conditions?.length) {
+    const excludes = calcReq.conditions.filter((c) => c.type === 'exclude');
+    if (excludes.length) cleanParams.set('exclude', excludes.map((c) => `${c.member}${c.paymentDescription ? `:${c.paymentDescription}` : ''}`).join(','));
+    const weights = calcReq.conditions.filter((c) => c.type === 'weight');
+    if (weights.length) cleanParams.set('weight', weights.map((c) => `${c.member}:${c.weight}${c.paymentDescription ? `:${c.paymentDescription}` : ''}`).join(','));
+    const discounts = calcReq.conditions.filter((c) => c.type === 'fixed_discount');
+    if (discounts.length) cleanParams.set('discount', discounts.map((c) => `${c.member}:${c.amount}${c.paymentDescription ? `:${c.paymentDescription}` : ''}`).join(','));
+  }
+  if (calcReq.options?.roundingUnit) cleanParams.set('unit', String(calcReq.options.roundingUnit));
+
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
       {/* Header */}
@@ -132,7 +150,7 @@ ${result.breakdown.map((b) => `・${b.member}: 負担額 ${formatJPY(b.share)} (
       {/* Action Button: Edit in interactive app */}
       <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
         <a
-          href={`/?${urlSearchParams.toString()}`}
+          href={`/?${cleanParams.toString()}`}
           className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-xs"
         >
           <span>アプリで条件を微調整する</span>
