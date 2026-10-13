@@ -20,24 +20,41 @@ export async function OPTIONS() {
 
 /**
  * GET エンドポイント:
- * 1. クエリパラメータ ?data=<JSON> または ?members=... がある場合は計算を実行して結果を返す
- * 2. クエリパラメータがない場合は API仕様情報を返す
+ * 1. クエリパラメータがある場合:
+ *    - Webブラウジングツールやブラウザからのアクセスの場合、自動的に /result HTMLページへリダイレクト（ChatGPTのWeb閲覧を100%成功させる）
+ *    - format=json または 明示的にAPI呼び出しの場合は JSONを返却
+ * 2. クエリパラメータがない場合:
+ *    - AI向けにURL組み立てガイドを案内
  */
 export async function GET(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-  const rawSearch = req.nextUrl.search;
+  let rawSearch = req.nextUrl.search;
+
+  // ChatGPT等のエンコードミス対策 (%26 を & に自動復元)
+  if (rawSearch.includes('%26') && !rawSearch.includes('&')) {
+    rawSearch = rawSearch.replace(/%26/g, '&');
+  }
 
   // クエリパラメータで計算リクエストが来た場合
   if (rawSearch && rawSearch.length > 1) {
     try {
-      // 柔軟なクエリパーサーでリクエストを生成
-      const calcReq = parseQueryToCalculateRequest(rawSearch);
+      const searchParams = new URLSearchParams(rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch);
+      const format = searchParams.get('format');
+      const accept = req.headers.get('accept') || '';
 
-      // 計算を実行
+      // ChatGPTのWeb閲覧ツールや通常ブラウザからアクセスされた場合、
+      // 確実に本文が読み取れる /result HTMLページへシームレスにリダイレクト
+      if (format !== 'json' && !accept.includes('application/json')) {
+        const redirectUrl = new URL(`/result?${searchParams.toString()}`, req.url);
+        return NextResponse.redirect(redirectUrl, {
+          status: 307,
+          headers: corsHeaders,
+        });
+      }
+
+      // JSONまたは明示的なリクエストの場合
+      const calcReq = parseQueryToCalculateRequest(rawSearch);
       const result = calculateSettlement(calcReq);
 
-      // format=text の場合はプレーンテキストで返す
-      const format = searchParams.get('format');
       if (format === 'text') {
         let textResult = `【warikaru 精算結果】\n`;
         textResult += `立替総額: ${formatJPY(result.summary.totalExpense)} (${result.summary.memberCount}名)\n\n`;
@@ -52,7 +69,6 @@ export async function GET(req: NextRequest) {
         });
         textResult += `\n【検証データ】\n`;
         textResult += `・合計差額: ${result.verification.sumNetBalance}円 (完全一致保証)\n`;
-        textResult += `・アルゴリズム: ${result.verification.algorithm}\n`;
 
         return new NextResponse(textResult, {
           status: 200,
@@ -76,10 +92,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // クエリパラメータがない場合は、AIやブラウザ向けにGET URLの組み立て方を明快に案内
+  // クエリパラメータがない場合は、AIやブラウザ向けにGET URLの組み立て方を案内
   return NextResponse.json(
     {
-      notice: 'パラメータが付与されていません。このURLの末尾にクエリパラメータを付与するか、以下の /result ページをブラウジングしてください。',
+      notice: 'パラメータが付与されていません。このURLの末尾にクエリパラメータを付与して /result を開いてください。',
       instructionForAI: 'AIアシスタントへ: ユーザーの条件からクエリを組み立て、以下のURLを開いて計算結果を取得してください。',
       recommendedUrlFormat: 'https://warikaru.vercel.app/result?members={名前一覧}&payments={支払者:金額:名目}&discount={割引対象:金額}&unit=100',
       exampleUrl: 'https://warikaru.vercel.app/result?members=A,B,C&payments=A:4000,B:3000&discount=C:500&unit=100',
