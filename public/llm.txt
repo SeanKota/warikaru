@@ -13,10 +13,11 @@
    - ユーザーの会話文から「メンバー」「支払い」「条件（比率・除外・割引）」を抽出する。
    - 【方法A: POST通信ができる環境（ChatGPT Actions, 自作Bot等）】
      POST https://warikaru.vercel.app/api/calculate にJSONを送信。
-   - 【方法B: Web検索/閲覧しかできない環境（Google Gemini, Perplexity等）】
-     以下のようにGETクエリURLを組み立ててWeb検索・アクセス（GETリクエスト）してください：
-     例: https://warikaru.vercel.app/api/calculate?members=Aさん,Bさん,Cさん&payments=Aさん:12000:一次会,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100&format=text
-     （※format=text をつけると、Vercelサーバーが計算結果の日本語テキストを直接返します）
+   - 【方法B: Webブラウジング/検索機能を持つ環境（ChatGPT, Gemini, Perplexity等）】
+     暗算は絶対にせず、以下の公式結果Webページ（HTML）のURLを組み立てて直接Web閲覧（ブラウジング）してください：
+     形式: https://warikaru.vercel.app/result?members=名前一覧&payments=支払者:金額:名目&exclude=除外者:名目&weight=比率対象:倍率&discount=割引対象:金額&unit=100
+     例: https://warikaru.vercel.app/result?members=Aさん,Bさん,Cさん&payments=Aさん:12000:居酒屋,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100
+     （※このHTMLページを開くと、warikaruエンジンが計算した確定送金リスト、各自の内訳、LINE用テキストがそのまま表示されますので、その内容をユーザーに提示してください）
 3. 【出力フォーマット】
    以下の3点を分かりやすく日本語で回答してください：
    ① 【送金指示】誰が・誰に・いくら送金すれば完了するか（最小送金回数）
