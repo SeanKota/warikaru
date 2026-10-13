@@ -1,69 +1,238 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import React, { useState, useMemo } from 'react';
+import { Header } from '@/components/Header';
+import { FeatureBanner } from '@/components/FeatureBanner';
+import { MemberManager } from '@/components/MemberManager';
+import { PaymentManager } from '@/components/PaymentManager';
+import { ConditionManager } from '@/components/ConditionManager';
+import { RoundingManager } from '@/components/RoundingManager';
+import { ResultDisplay } from '@/components/ResultDisplay';
+import { LlmSpecModal } from '@/components/LlmSpecModal';
+import { CalculateRequest, Condition, Payment, CalculateOptions } from '@/lib/types';
+import { calculateSettlement } from '@/lib/calculate';
+import { PRESETS, Preset } from '@/lib/presets';
+import { Code } from 'lucide-react';
+
+export default function HomePage() {
+  // 初期データ: ユーザー要件の居酒屋＆タクシー例
+  const defaultPreset = PRESETS[0];
+
+  const [members, setMembers] = useState<string[]>(defaultPreset.data.members);
+  const [payments, setPayments] = useState<Payment[]>(defaultPreset.data.payments);
+  const [conditions, setConditions] = useState<Condition[]>(defaultPreset.data.conditions || []);
+  const [options, setOptions] = useState<CalculateOptions>(defaultPreset.data.options || {
+    roundingUnit: 100,
+    roundingMode: 'round',
+    roundingTarget: 'highest_share',
+  });
+
+  const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
+  const [showJsonView, setShowJsonView] = useState(false);
+
+  // リクエストオブジェクト
+  const currentRequest: CalculateRequest = useMemo(() => {
+    return {
+      members,
+      payments,
+      conditions,
+      options,
+    };
+  }, [members, payments, conditions, options]);
+
+  // リアルタイム計算結果
+  const { response, error } = useMemo(() => {
+    try {
+      if (members.length === 0) {
+        return { response: null, error: 'メンバーを1名以上指定してください。' };
+      }
+      const res = calculateSettlement(currentRequest);
+      return { response: res, error: null };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '計算中にエラーが発生しました。';
+      return { response: null, error: msg };
+    }
+  }, [currentRequest, members]);
+
+  // プリセット適用
+  const handleSelectPreset = (preset: Preset) => {
+    setMembers(preset.data.members);
+    setPayments(preset.data.payments);
+    setConditions(preset.data.conditions || []);
+    if (preset.data.options) {
+      setOptions(preset.data.options);
+    }
+  };
+
+  // メンバー操作
+  const handleAddMember = (name: string) => {
+    if (!members.includes(name)) {
+      setMembers([...members, name]);
+    }
+  };
+
+  const handleRemoveMember = (name: string) => {
+    setMembers(members.filter((m) => m !== name));
+    setPayments(
+      payments.map((p) => {
+        const newTargets = p.targetMembers?.filter((m) => m !== name);
+        const newPaidBy = p.paidBy === name ? members.find((m) => m !== name) || '' : p.paidBy;
+        return {
+          ...p,
+          paidBy: newPaidBy,
+          targetMembers: newTargets,
+        };
+      })
+    );
+    setConditions(conditions.filter((c) => c.member !== name));
+  };
+
+  // 支払い操作
+  const handleAddPayment = () => {
+    const newPayment: Payment = {
+      paidBy: members[0] || 'Aさん',
+      amount: 0,
+      description: `支払い #${payments.length + 1}`,
+    };
+    setPayments([...payments, newPayment]);
+  };
+
+  const handleUpdatePayment = (index: number, updated: Payment) => {
+    const copy = [...payments];
+    copy[index] = updated;
+    setPayments(copy);
+  };
+
+  const handleRemovePayment = (index: number) => {
+    setPayments(payments.filter((_, i) => i !== index));
+  };
+
+  // 条件操作
+  const handleAddCondition = (cond: Condition) => {
+    setConditions([...conditions, cond]);
+  };
+
+  const handleUpdateCondition = (index: number, updated: Condition) => {
+    const copy = [...conditions];
+    copy[index] = updated;
+    setConditions(copy);
+  };
+
+  const handleRemoveCondition = (index: number) => {
+    setConditions(conditions.filter((_, i) => i !== index));
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+    <div className="min-h-screen bg-slate-50/60 text-slate-900 flex flex-col font-sans">
+      <Header
+        onSelectPreset={handleSelectPreset}
+        onOpenLlmModal={() => setIsLlmModalOpen(true)}
+      />
+
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Banner: AI + TypeScript Deterministic Engine */}
+        <FeatureBanner />
+
+        {/* 2-Column Responsive Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Input Forms */}
+          <div className="lg:col-span-6 space-y-5">
+            <MemberManager
+              members={members}
+              onAddMember={handleAddMember}
+              onRemoveMember={handleRemoveMember}
+              onSetMembers={setMembers}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            <PaymentManager
+              payments={payments}
+              members={members}
+              onAddPayment={handleAddPayment}
+              onUpdatePayment={handleUpdatePayment}
+              onRemovePayment={handleRemovePayment}
+            />
+
+            <ConditionManager
+              conditions={conditions}
+              members={members}
+              payments={payments}
+              onAddCondition={handleAddCondition}
+              onUpdateCondition={handleUpdateCondition}
+              onRemoveCondition={handleRemoveCondition}
+            />
+
+            <RoundingManager
+              options={options}
+              onChangeOptions={setOptions}
+            />
+
+            {/* Quick Toggle to View JSON Payload */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Code className="w-3.5 h-3.5 text-indigo-600" />
+                  APIリクエスト用 JSON データ
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowJsonView(!showJsonView)}
+                  className="text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {showJsonView ? '折りたたむ' : '表示する'}
+                </button>
+              </div>
+              {showJsonView && (
+                <pre className="mt-3 p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] overflow-x-auto max-h-60">
+                  {JSON.stringify(currentRequest, null, 2)}
+                </pre>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Output / Optimal Transfers / Verification / Breakdown */}
+          <div className="lg:col-span-6 sticky lg:top-20 space-y-5">
+            <ResultDisplay
+              request={currentRequest}
+              response={response}
+              error={error}
+            />
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200 bg-white py-6 mt-12 text-center text-xs text-slate-500">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-800">warikaru (割軽)</span>
+            <span>—</span>
+            <span>AIの計算ミスを防ぐ高信頼な割り勘・精算エンジン</span>
+          </div>
+
+          <div className="flex items-center gap-4 text-xs">
+            <button
+              onClick={() => setIsLlmModalOpen(true)}
+              className="text-indigo-600 hover:underline"
+            >
+              /llm.txt 仕様書
+            </button>
+            <a
+              href="/api/calculate"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-600 hover:text-indigo-600 hover:underline"
+            >
+              API Endpoint
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {/* LLM Spec Modal */}
+      <LlmSpecModal
+        isOpen={isLlmModalOpen}
+        onClose={() => setIsLlmModalOpen(false)}
+      />
     </div>
   );
 }

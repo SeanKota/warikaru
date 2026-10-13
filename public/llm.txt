@@ -1,0 +1,211 @@
+# warikaru (割軽) API Specification for LLMs & AI Agents
+# Version: 1.0.0
+# Endpoint: POST /api/calculate
+# Host: https://<domain>/api/calculate (or http://localhost:3000/api/calculate in development)
+
+================================================================================
+1. PURPOSE & OVERVIEW (アプリの目的)
+================================================================================
+Large Language Models (LLMs) often make arithmetic errors, rounding discrepancies,
+or suboptimal multi-party debt settlement loops (e.g., A pays B, B pays C, C pays A).
+
+warikaru is a deterministic, high-precision calculation engine designed specifically
+for AI agents and humans to compute multi-party bill-splitting and expense settlements.
+
+KEY CAPABILITIES:
+- Zero arithmetic hallucination: All math is computed deterministically in TypeScript.
+- Transaction minimization: Uses graph theory and a greedy cash-flow algorithm with
+  exact-match heuristics to minimize total transfer counts (at most N-1 transactions).
+- Flexible conditions: Supports exclusions (e.g., someone missed the taxi ride),
+  weighted splits (e.g., 1.5x for managers, 0.5x for non-drinkers), and fixed discounts.
+- Mathematical verification: Guaranteed conservation of money (sum of net balances == 0).
+- Rounding control: Supports 1, 10, 50, 100, 500, and 1,000 JPY unit roundings.
+
+When an AI assistant receives a bill-splitting request from a user, the AI should
+NOT compute the fractions and debt graphs in its head. Instead, construct the JSON
+payload described below, call this API, and present the returned verified result.
+
+================================================================================
+2. API ENDPOINT & HTTP SPECIFICATION
+================================================================================
+URL: /api/calculate
+Method: POST
+Headers:
+  Content-Type: application/json
+  Accept: application/json
+CORS: Enabled (Access-Control-Allow-Origin: *)
+
+================================================================================
+3. REQUEST JSON SCHEMA
+================================================================================
+{
+  "members": string[],                     // [Required] List of participant names
+  "payments": [                            // [Required] List of expenses paid
+    {
+      "paidBy": string,                    // [Required] Name of the payer (must be in members)
+      "amount": number,                    // [Required] Total amount paid (integer, >= 0)
+      "description": string,               // [Optional] Purpose (e.g., "居酒屋", "タクシー")
+      "targetMembers": string[]            // [Optional] Specific participants who participated in this payment.
+                                           //            If omitted, all members participate (subject to conditions).
+    }
+  ],
+  "conditions": [                          // [Optional] Custom adjustment rules
+    {
+      "type": "exclude" | "weight" | "fixed_discount", // [Required]
+      "member": string,                    // [Required] Target participant name
+      "paymentIndex": number,              // [Optional] 0-based index of payment to apply this rule to
+      "paymentDescription": string,        // [Optional] Match payment by description (e.g., "タクシー")
+      "weight": number,                    // [For 'weight'] Multiplier (default: 1.0, e.g., 1.5, 0.5)
+      "amount": number,                    // [For 'fixed_discount'] Discount amount in JPY (e.g., 1000)
+      "description": string                // [Optional] Human explanation (e.g., "タクシーに乗っていないため除外")
+    }
+  ],
+  "options": {                             // [Optional] Rounding and balancing options
+    "roundingUnit": 1 | 10 | 50 | 100 | 500 | 1000, // Rounding unit in JPY (default: 1)
+    "roundingMode": "round" | "floor" | "ceil",     // Rounding method (default: "round")
+    "roundingTarget": "highest_share" | "payer" | "equal" // Who absorbs the rounding difference (default: "highest_share")
+  }
+}
+
+--------------------------------------------------------------------------------
+Condition Type Explanations:
+- "exclude":
+    Excludes the specified member from a specific payment (or all payments if unspecified).
+    The excluded member pays 0 JPY for that expense, and the remaining members share it.
+- "weight":
+    Sets a proportional share weight.
+    For example, weight = 1.5 means the member pays 1.5x of a normal share.
+    Non-drinkers can be set to weight = 0.5.
+- "fixed_discount":
+    Deducts a fixed amount from the member's share (e.g., 1,000 JPY discount for late arrival).
+    The discounted difference is proportionally absorbed by the other members.
+
+================================================================================
+4. RESPONSE JSON SCHEMA
+================================================================================
+{
+  "success": boolean,
+  "transfers": [                           // Optimal minimum transfer list
+    {
+      "from": string,                      // Sender name (Debtor)
+      "to": string,                        // Receiver name (Creditor)
+      "amount": number                     // Transfer amount in JPY
+    }
+  ],
+  "breakdown": [                           // Itemized statement per member
+    {
+      "member": string,
+      "paid": number,                      // Total amount this member paid upfront
+      "share": number,                     // Final fair share to pay (after rounding)
+      "net": number,                       // Net balance: paid - share (+: receives, -: pays)
+      "rawShare": number,                  // Exact calculated share before rounding
+      "paymentDetails": [
+        {
+          "paymentDescription": string,
+          "paidBy": string,
+          "paymentAmount": number,
+          "memberShare": number,
+          "isExcluded": boolean,
+          "appliedWeight": number | null,
+          "appliedDiscount": number | null
+        }
+      ],
+      "appliedConditions": string[]        // Log of conditions applied to this member
+    }
+  ],
+  "verification": {                        // Mathematical proof of zero discrepancy
+    "totalPaid": number,                   // Sum of all payments
+    "totalShare": number,                  // Sum of all final shares (equals totalPaid)
+    "sumNetBalance": number,               // Net balance sum (strictly 0)
+    "totalTransferAmount": number,         // Total volume of money transferred
+    "transferCount": number,               // Number of transfers (optimized to minimum)
+    "isBalanced": boolean,                 // True if totalPaid == totalShare && sumNetBalance == 0
+    "isComplete": boolean,                 // True if all debts are settled by the transfer list
+    "roundingDifference": number,          // Adjustments made to ensure perfect balance
+    "algorithm": string                    // "Greedy Minimum Cash Flow with Exact-Match Heuristic"
+  },
+  "summary": {
+    "totalExpense": number,
+    "memberCount": number,
+    "averagePerPerson": number
+  }
+}
+
+================================================================================
+5. MINIMUM CASH FLOW ALGORITHM (最小送金回数アルゴリズム)
+================================================================================
+Without optimization, N members might perform N*(N-1)/2 transactions.
+warikaru resolves this in at most N-1 transactions using:
+1. Exact-Match Heuristic:
+   If Member A owes exactly the same amount that Member B is owed (|net_A| == net_B),
+   they settle directly in a single transfer.
+2. Greedy Cash Flow Optimization:
+   Repeatedly pairs the largest debtor with the largest creditor and settles
+   min(debt, credit), reducing at least one party's balance to zero in each step.
+This guarantees minimal friction and maximum clarity.
+
+================================================================================
+6. SAMPLE REQUEST & RESPONSE
+================================================================================
+Request:
+{
+  "members": ["Aさん", "Bさん", "Cさん"],
+  "payments": [
+    { "paidBy": "Aさん", "amount": 12000, "description": "一次会（居酒屋）" },
+    { "paidBy": "Bさん", "amount": 3000, "description": "タクシー代" }
+  ],
+  "conditions": [
+    { "type": "exclude", "member": "Cさん", "paymentDescription": "タクシー代", "description": "タクシー乗っていないためタクシー代から除外" },
+    { "type": "weight", "member": "Aさん", "weight": 1.5 },
+    { "type": "fixed_discount", "member": "Cさん", "amount": 1000 }
+  ],
+  "options": {
+    "roundingUnit": 100,
+    "roundingMode": "round"
+  }
+}
+
+Response (Excerpt):
+{
+  "success": true,
+  "transfers": [
+    { "from": "Cさん", "to": "Aさん", "amount": 2400 },
+    { "from": "Bさん", "to": "Aさん", "amount": 2100 }
+  ],
+  "verification": {
+    "totalPaid": 15000,
+    "totalShare": 15000,
+    "sumNetBalance": 0,
+    "isBalanced": true,
+    "isComplete": true
+  }
+}
+
+================================================================================
+7. PROMPT INSTRUCTION FOR AI AGENTS (AI用プロンプト・ツール定義)
+================================================================================
+When a user asks:
+"昨日の飲み会、Aさんが居酒屋12,000円立替えて、Bさんがタクシー3,000円立替えた。
+Cさんはタクシー乗ってない。Aさんは上司だから1.5倍払う。Cさんは1,000円割引にして。精算よろしく。"
+
+Instructions for LLM:
+1. DO NOT do mental math.
+2. Extract the members, payments, and conditions into the warikaru JSON format.
+3. Call POST /api/calculate with the JSON payload.
+4. Output the returned `transfers` and `verification` directly to the user.
+
+cURL Example:
+curl -X POST https://warikaru.vercel.app/api/calculate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "members": ["Aさん", "Bさん", "Cさん"],
+    "payments": [
+      { "paidBy": "Aさん", "amount": 12000, "description": "一次会（居酒屋）" },
+      { "paidBy": "Bさん", "amount": 3000, "description": "タクシー代" }
+    ],
+    "conditions": [
+      { "type": "exclude", "member": "Cさん", "description": "タクシー乗っていないためタクシー代から除外" },
+      { "type": "weight", "member": "Aさん", "weight": 1.5 },
+      { "type": "fixed_discount", "member": "Cさん", "amount": 1000 }
+    ]
+  }'
