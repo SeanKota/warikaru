@@ -13,6 +13,7 @@ import {
   FileCheck,
   ChevronDown,
   ChevronUp,
+  Link2,
 } from 'lucide-react';
 import { CalculateRequest, CalculateResponse } from '@/lib/types';
 import { formatJPY } from '@/lib/utils';
@@ -25,7 +26,7 @@ interface ResultDisplayProps {
 }
 
 export function ResultDisplay({ request, response, error }: ResultDisplayProps) {
-  const [copiedType, setCopiedType] = useState<'line' | 'ai' | null>(null);
+  const [copiedType, setCopiedType] = useState<'line' | 'ai' | 'url' | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(true);
 
   if (error) {
@@ -46,6 +47,12 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
   }
 
   const { transfers, breakdown, verification, summary } = response;
+
+  // GET用ダイレクト計算URL（Gemini等のWeb検索AIやLINE共有用）
+  const generateShareUrl = () => {
+    const encoded = encodeURIComponent(JSON.stringify(request));
+    return `https://warikaru.vercel.app/api/calculate?data=${encoded}&format=text`;
+  };
 
   // LINE / Slack 共有用テキストの生成
   const generateShareText = () => {
@@ -76,7 +83,7 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
     return JSON.stringify(request, null, 2);
   };
 
-  const copyToClipboard = async (text: string, type: 'line' | 'ai') => {
+  const copyToClipboard = async (text: string, type: 'line' | 'ai' | 'url') => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedType(type);
@@ -178,19 +185,19 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
 
           <button
             type="button"
-            onClick={() => copyToClipboard(generateAiJson(), 'ai')}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition shadow-2xs"
-            title="ChatGPTやClaudeにそのまま渡せるリクエストJSON"
+            onClick={() => copyToClipboard(generateShareUrl(), 'url')}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition shadow-2xs"
+            title="Gemini等のWeb検索AIやLINE共有に使えるGET URL"
           >
-            {copiedType === 'ai' ? (
+            {copiedType === 'url' ? (
               <>
-                <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                <span>JSON コピー完了！</span>
+                <CheckCircle2 className="w-4 h-4 text-indigo-700" />
+                <span>URL コピー完了！</span>
               </>
             ) : (
               <>
-                <Bot className="w-4 h-4 text-indigo-600" />
-                <span>AI用JSON/プロンプトをコピー</span>
+                <Link2 className="w-4 h-4 text-indigo-700" />
+                <span>Gemini/共有用URLをコピー</span>
               </>
             )}
           </button>
