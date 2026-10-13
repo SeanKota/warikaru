@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateSettlement } from '@/lib/calculate';
-import { CalculateRequest, Condition, Payment, RoundingUnit, RoundingMode } from '@/lib/types';
+import { parseQueryToCalculateRequest } from '@/lib/queryParser';
+import { CalculateRequest } from '@/lib/types';
 import { formatJPY } from '@/lib/utils';
 
 // CORSヘッダー設定（AIエージェントや外部クライアントからのアクセスを許可）
@@ -19,98 +20,23 @@ export async function OPTIONS() {
 
 /**
  * GET エンドポイント:
- * 1. クエリパラメータ ?data=<JSON> または ?members=... がある場合は計算を実行して結果を返す（Web検索機能しか持たないGemini等向け）
+ * 1. クエリパラメータ ?data=<JSON> または ?members=... がある場合は計算を実行して結果を返す
  * 2. クエリパラメータがない場合は API仕様情報を返す
  */
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
-  const dataParam = searchParams.get('data');
-  const membersParam = searchParams.get('members');
+  const rawSearch = req.nextUrl.search;
 
   // クエリパラメータで計算リクエストが来た場合
-  if (dataParam || membersParam) {
+  if (rawSearch && rawSearch.length > 1) {
     try {
-      let calcReq: CalculateRequest;
-
-      if (dataParam) {
-        // パターンA: ?data=<JSON文字列またはURLエンコードJSON>
-        calcReq = JSON.parse(decodeURIComponent(dataParam));
-      } else {
-        // パターンB: シンプルなクエリパラメータ形式
-        // 例: ?members=Aさん,Bさん,Cさん&payments=Aさん:12000:一次会,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100
-        const members = (membersParam || '').split(',').map((m) => m.trim()).filter(Boolean);
-
-        const paymentsStr = searchParams.get('payments') || '';
-        const payments: Payment[] = paymentsStr.split(',').filter(Boolean).map((item) => {
-          const [paidBy, amountStr, description] = item.split(':').map((s) => s.trim());
-          return {
-            paidBy: paidBy || members[0] || 'Aさん',
-            amount: parseInt(amountStr, 10) || 0,
-            description: description || undefined,
-          };
-        });
-
-        const conditions: Condition[] = [];
-
-        // exclude: Cさん:タクシー
-        const excludeStr = searchParams.get('exclude') || '';
-        excludeStr.split(',').filter(Boolean).forEach((item) => {
-          const [member, paymentDescription] = item.split(':').map((s) => s.trim());
-          if (member) {
-            conditions.push({
-              type: 'exclude',
-              member,
-              paymentDescription: paymentDescription || undefined,
-            });
-          }
-        });
-
-        // weight: Aさん:1.5
-        const weightStr = searchParams.get('weight') || '';
-        weightStr.split(',').filter(Boolean).forEach((item) => {
-          const [member, weightVal, paymentDescription] = item.split(':').map((s) => s.trim());
-          if (member) {
-            conditions.push({
-              type: 'weight',
-              member,
-              weight: parseFloat(weightVal) || 1.0,
-              paymentDescription: paymentDescription || undefined,
-            });
-          }
-        });
-
-        // discount: Cさん:1000
-        const discountStr = searchParams.get('discount') || '';
-        discountStr.split(',').filter(Boolean).forEach((item) => {
-          const [member, amountVal, paymentDescription] = item.split(':').map((s) => s.trim());
-          if (member) {
-            conditions.push({
-              type: 'fixed_discount',
-              member,
-              amount: parseInt(amountVal, 10) || 0,
-              paymentDescription: paymentDescription || undefined,
-            });
-          }
-        });
-
-        const unit = parseInt(searchParams.get('unit') || '100', 10) as RoundingUnit;
-        const mode = (searchParams.get('mode') || 'round') as RoundingMode;
-
-        calcReq = {
-          members,
-          payments,
-          conditions,
-          options: {
-            roundingUnit: unit,
-            roundingMode: mode,
-          },
-        };
-      }
+      // 柔軟なクエリパーサーでリクエストを生成
+      const calcReq = parseQueryToCalculateRequest(rawSearch);
 
       // 計算を実行
       const result = calculateSettlement(calcReq);
 
-      // format=text の場合は人間や検索AIが読みやすいプレーンテキストで返す
+      // format=text の場合はプレーンテキストで返す
       const format = searchParams.get('format');
       if (format === 'text') {
         let textResult = `【warikaru 精算結果】\n`;
@@ -154,21 +80,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       name: 'warikaru API',
-      version: '1.1.0',
-      description: 'AI-agent-ready high-precision bill splitting and settlement engine (Supports both GET and POST)',
+      version: '1.2.0',
+      description: 'AI-agent-ready high-precision bill splitting and settlement engine (Supports GET, POST, and /result HTML page)',
       specification: '/llm.txt',
+      htmlResultPage: '/result?members=... (AI Web Browsing Tool & Human Friendly)',
       methods: ['GET', 'POST'],
       getUsageExamples: [
-        'GET /api/calculate?members=Aさん,Bさん,Cさん&payments=Aさん:12000:一次会,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100',
-        'GET /api/calculate?data=<URL_ENCODED_JSON>',
-        'GET /api/calculate?data=<URL_ENCODED_JSON>&format=text',
+        'GET /result?members=Aさん,Bさん,Cさん&payments=Aさん:12000:居酒屋,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100',
+        'GET /api/calculate?members=Aさん,Bさん,Cさん&payments=Aさん:12000:一次会,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100&format=text',
       ],
-      schema: {
-        members: 'string[] (required)',
-        payments: 'Array<{ paidBy: string, amount: number, description?: string, targetMembers?: string[] }> (required)',
-        conditions: 'Array<{ type: "exclude" | "weight" | "fixed_discount", member: string, paymentDescription?: string, weight?: number, amount?: number }> (optional)',
-        options: '{ roundingUnit?: 1 | 10 | 50 | 100 | 500 | 1000, roundingMode?: "round" | "floor" | "ceil" } (optional)',
-      },
     },
     { headers: corsHeaders }
   );
@@ -208,7 +128,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 計算の実行
     const result = calculateSettlement(body);
 
     return NextResponse.json(result, {
