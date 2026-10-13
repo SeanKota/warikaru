@@ -1,7 +1,23 @@
 # warikaru (割軽) API Specification for LLMs & AI Agents
 # Version: 1.0.0
 # Endpoint: POST /api/calculate
-# Host: https://<domain>/api/calculate (or http://localhost:3000/api/calculate in development)
+# Host: https://warikaru.vercel.app/api/calculate (replace with your domain if different)
+
+================================================================================
+【AIアシスタント（ChatGPT / Claude 等）への直接指示 / DIRECT INSTRUCTIONS FOR AI】
+================================================================================
+ユーザーが「このURL（または llm.txt）に従って計算して」と指示してきた場合：
+
+1. 【絶対禁止】暗算や自己推論で割り勘を計算しないでください（LLMは按分計算・端数処理・送金最小化で高確率でミスをします）。
+2. 【実行手順】
+   - ユーザーの会話文から「メンバー」「支払い」「条件（比率・除外・割引）」を抽出してJSON化する。
+   - Web通信（cURL/fetch）または Pythonコード実行（Code Interpreter）を使って、以下のAPIまたは「決定論的アルゴリズム（セクション5）」で計算を実行する。
+   - エンドポイント: POST https://warikaru.vercel.app/api/calculate
+3. 【出力フォーマット】
+   以下の3点を分かりやすく日本語で回答してください：
+   ① 【送金指示】誰が・誰に・いくら送金すれば完了するか（最小送金回数）
+   ② 【各自の内訳】立替額、負担額、貸し借り差額（プラスは受取、マイナスは支払）
+   ③ 【LINE / Slack共有用テキスト】コピーしてそのままグループに貼れる整形テキスト
 
 ================================================================================
 1. PURPOSE & OVERVIEW (アプリの目的)
