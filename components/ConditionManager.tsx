@@ -146,9 +146,9 @@ export function ConditionManager({
                   onChange={(e) => setNewType(e.target.value as ConditionType)}
                   className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 bg-white"
                 >
-                  <option value="weight">比率・傾斜 (weight)</option>
-                  <option value="exclude">特定支払い除外 (exclude)</option>
-                  <option value="fixed_discount">固定割引 (fixed discount)</option>
+                  <option value="weight">比率・傾斜</option>
+                  <option value="exclude">特定支払いの除外</option>
+                  <option value="fixed_discount">固定割引</option>
                 </select>
               </div>
 

@@ -24,10 +24,10 @@ export function BreakdownTable({ breakdown }: BreakdownTableProps) {
           <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="py-3 px-3 sm:px-4">メンバー</th>
-              <th className="py-3 px-3 sm:px-4 text-right">立替額 (Paid)</th>
-              <th className="py-3 px-3 sm:px-4 text-right">負担額 (Share)</th>
-              <th className="py-3 px-3 sm:px-4 text-right">差額 (Net Balance)</th>
-              <th className="py-3 px-3 sm:px-4 text-center">内訳</th>
+              <th className="py-3 px-3 sm:px-4 text-right">立替額</th>
+              <th className="py-3 px-3 sm:px-4 text-right">負担額</th>
+              <th className="py-3 px-3 sm:px-4 text-right">差額</th>
+              <th className="py-3 px-3 sm:px-4 text-center">詳細</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white font-medium">
@@ -142,8 +142,8 @@ export function BreakdownTable({ breakdown }: BreakdownTableProps) {
                           </div>
 
                           <div className="text-[11px] text-slate-400 pt-1 flex justify-between">
-                            <span>丸め前正確額: ¥{b.rawShare.toLocaleString()}</span>
-                            <span>丸め調整後負担額: {formatJPY(b.share)}</span>
+                            <span>端数調整前: ¥{b.rawShare.toLocaleString()}</span>
+                            <span>最終負担額: {formatJPY(b.share)}</span>
                           </div>
                         </div>
                       </td>

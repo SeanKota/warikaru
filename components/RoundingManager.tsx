@@ -36,7 +36,7 @@ export function RoundingManager({ options, onChangeOptions }: RoundingManagerPro
           <div>
             <h3 className="text-xs font-semibold text-slate-800">端数・丸め設定</h3>
             <p className="text-[11px] text-slate-400">
-              送金しやすい単位に丸めても、合計額は厳密に自動整合されます
+              送金しやすい単位に金額を揃えます
             </p>
           </div>
         </div>

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
-import { FeatureBanner } from '@/components/FeatureBanner';
 import { MemberManager } from '@/components/MemberManager';
 import { PaymentManager } from '@/components/PaymentManager';
 import { ConditionManager } from '@/components/ConditionManager';
@@ -13,10 +12,8 @@ import { CalculateRequest, Condition, Payment, CalculateOptions } from '@/lib/ty
 import { calculateSettlement } from '@/lib/calculate';
 import { parseQueryToCalculateRequest } from '@/lib/queryParser';
 import { PRESETS, Preset } from '@/lib/presets';
-import { Code } from 'lucide-react';
 
 export default function HomePage() {
-  // 初期データ: ユーザー要件の居酒屋＆タクシー例
   const defaultPreset = PRESETS[0];
 
   const [members, setMembers] = useState<string[]>(defaultPreset.data.members);
@@ -29,9 +26,8 @@ export default function HomePage() {
   });
 
   const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
-  const [showJsonView, setShowJsonView] = useState(false);
 
-  // URLにパラメータが付与されている場合（ChatGPTのリンクから飛んできた場合など）、自動で復元する
+  // URLにパラメータが付与されている場合、自動で復元する
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search && window.location.search.length > 1) {
       try {
@@ -54,7 +50,6 @@ export default function HomePage() {
     }
   }, []);
 
-  // リクエストオブジェクト
   const currentRequest: CalculateRequest = useMemo(() => {
     return {
       members,
@@ -64,7 +59,6 @@ export default function HomePage() {
     };
   }, [members, payments, conditions, options]);
 
-  // リアルタイム計算結果
   const { response, error } = useMemo(() => {
     try {
       if (members.length === 0) {
@@ -78,7 +72,6 @@ export default function HomePage() {
     }
   }, [currentRequest, members]);
 
-  // プリセット適用
   const handleSelectPreset = (preset: Preset) => {
     setMembers(preset.data.members);
     setPayments(preset.data.payments);
@@ -88,7 +81,6 @@ export default function HomePage() {
     }
   };
 
-  // メンバー操作
   const handleAddMember = (name: string) => {
     if (!members.includes(name)) {
       setMembers([...members, name]);
@@ -111,7 +103,6 @@ export default function HomePage() {
     setConditions(conditions.filter((c) => c.member !== name));
   };
 
-  // 支払い操作
   const handleAddPayment = () => {
     const newPayment: Payment = {
       paidBy: members[0] || 'Aさん',
@@ -131,7 +122,6 @@ export default function HomePage() {
     setPayments(payments.filter((_, i) => i !== index));
   };
 
-  // 条件操作
   const handleAddCondition = (cond: Condition) => {
     setConditions([...conditions, cond]);
   };
@@ -154,13 +144,10 @@ export default function HomePage() {
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Banner: AI + TypeScript Deterministic Engine */}
-        <FeatureBanner />
-
         {/* 2-Column Responsive Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column: Input Forms */}
-          <div className="lg:col-span-6 space-y-5">
+          <div className="lg:col-span-6 space-y-4">
             <MemberManager
               members={members}
               onAddMember={handleAddMember}
@@ -189,32 +176,10 @@ export default function HomePage() {
               options={options}
               onChangeOptions={setOptions}
             />
-
-            {/* Quick Toggle to View JSON Payload */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Code className="w-3.5 h-3.5 text-indigo-600" />
-                  APIリクエスト用 JSON データ
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowJsonView(!showJsonView)}
-                  className="text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  {showJsonView ? '折りたたむ' : '表示する'}
-                </button>
-              </div>
-              {showJsonView && (
-                <pre className="mt-3 p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] overflow-x-auto max-h-60">
-                  {JSON.stringify(currentRequest, null, 2)}
-                </pre>
-              )}
-            </div>
           </div>
 
           {/* Right Column: Output / Optimal Transfers / Verification / Breakdown */}
-          <div className="lg:col-span-6 sticky lg:top-20 space-y-5">
+          <div className="lg:col-span-6 sticky lg:top-20 space-y-4">
             <ResultDisplay
               request={currentRequest}
               response={response}
@@ -225,29 +190,21 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-6 mt-12 text-center text-xs text-slate-500">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800">warikaru (割軽)</span>
-            <span>—</span>
-            <span>AIの計算ミスを防ぐ高信頼な割り勘・精算エンジン</span>
+      <footer className="border-t border-slate-200 bg-white py-5 mt-10 text-center text-xs text-slate-400">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div>
+            <span className="font-semibold text-slate-700">warikaru (割軽)</span>
+            <span className="mx-2">—</span>
+            <span>シンプルな割り勘・精算アプリ</span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-4 text-[11px] text-slate-400">
             <button
               onClick={() => setIsLlmModalOpen(true)}
-              className="text-indigo-600 hover:underline"
+              className="hover:text-indigo-600 transition"
             >
-              /llm.txt 仕様書
+              API仕様書
             </button>
-            <a
-              href="/api/calculate"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-slate-600 hover:text-indigo-600 hover:underline"
-            >
-              API Endpoint
-            </a>
           </div>
         </div>
       </footer>

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "warikaru (割軽) | AIの計算ミスを防ぐ高信頼な割り勘・精算エンジン",
-  description: "AIの算術計算ミスを防ぐ決定論的TypeScript計算エンジン、llm.txt規格、最小送金最適化アルゴリズムを融合した高信頼な割り勘Webアプリケーション。",
+  title: "warikaru (割軽) | かんたん割り勘・精算",
+  description: "面倒な割り勘や複数人の立替を、最も少ない送金回数でスッキリ精算できるWebアプリ。",
 };
 
 export default function RootLayout({

@@ -4,12 +4,7 @@ import React, { useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
-  Copy,
   Share2,
-  Sparkles,
-  Bot,
-  ShieldCheck,
-  TrendingUp,
   FileCheck,
   ChevronDown,
   ChevronUp,
@@ -26,7 +21,7 @@ interface ResultDisplayProps {
 }
 
 export function ResultDisplay({ request, response, error }: ResultDisplayProps) {
-  const [copiedType, setCopiedType] = useState<'line' | 'ai' | 'url' | null>(null);
+  const [copiedType, setCopiedType] = useState<'line' | 'url' | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(true);
 
   if (error) {
@@ -48,42 +43,64 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
 
   const { transfers, breakdown, verification, summary } = response;
 
-  // GET用ダイレクト計算URL（Gemini等のWeb検索AIやLINE共有用）
+  // 共有用URLの生成（結果ページに直接アクセスできるURL）
   const generateShareUrl = () => {
-    const encoded = encodeURIComponent(JSON.stringify(request));
-    return `https://warikaru.vercel.app/api/calculate?data=${encoded}&format=text`;
+    const params = new URLSearchParams();
+    if (request.members?.length) {
+      params.set('members', request.members.join(','));
+    }
+    if (request.payments?.length) {
+      params.set(
+        'payments',
+        request.payments.map((p) => `${p.paidBy}:${p.amount}${p.description ? `:${p.description}` : ''}`).join(',')
+      );
+    }
+    if (request.conditions?.length) {
+      const excludes = request.conditions.filter((c) => c.type === 'exclude');
+      if (excludes.length) {
+        params.set('exclude', excludes.map((c) => `${c.member}${c.paymentDescription ? `:${c.paymentDescription}` : ''}`).join(','));
+      }
+      const weights = request.conditions.filter((c) => c.type === 'weight');
+      if (weights.length) {
+        params.set('weight', weights.map((c) => `${c.member}:${c.weight}${c.paymentDescription ? `:${c.paymentDescription}` : ''}`).join(','));
+      }
+      const discounts = request.conditions.filter((c) => c.type === 'fixed_discount');
+      if (discounts.length) {
+        params.set('discount', discounts.map((c) => `${c.member}:${c.amount}${c.paymentDescription ? `:${c.paymentDescription}` : ''}`).join(','));
+      }
+    }
+    if (request.options?.roundingUnit) {
+      params.set('unit', String(request.options.roundingUnit));
+    }
+    return `https://warikaru.vercel.app/result?${params.toString()}`;
   };
 
   // LINE / Slack 共有用テキストの生成
   const generateShareText = () => {
-    let text = `【warikaru 精算結果】\n`;
-    text += `💰 立替総額: ${formatJPY(summary.totalExpense)} (${summary.memberCount}名)\n\n`;
+    let text = `【精算結果】\n`;
+    text += `立替総額: ${formatJPY(summary.totalExpense)} (${summary.memberCount}名)\n\n`;
 
     if (transfers.length === 0) {
-      text += `🎉 全員の貸し借りは精算済みです（送金不要）\n`;
+      text += `送金は不要です（全員精算済）\n`;
     } else {
-      text += `📋 送金指示リスト (最小${transfers.length}回の送金):\n`;
+      text += `【送金リスト】\n`;
       transfers.forEach((t) => {
-        text += `・${t.from} ➔ ${t.to} へ ${formatJPY(t.amount)}\n`;
+        text += `・${t.from} ➔ ${t.to}: ${formatJPY(t.amount)}\n`;
       });
     }
 
-    text += `\n📊 各自の負担額内訳:\n`;
+    text += `\n【各自の内訳】\n`;
     breakdown.forEach((b) => {
-      const netSign = b.net > 0 ? `+${formatJPY(b.net)} (受取)` : b.net < 0 ? `-${formatJPY(Math.abs(b.net))} (支払)` : `0円 (精算済)`;
+      const netSign = b.net > 0 ? `+${formatJPY(b.net)} (受取)` : b.net < 0 ? `-${formatJPY(Math.abs(b.net))} (支払)` : `0円`;
       text += `・${b.member}: 負担額 ${formatJPY(b.share)} (立替: ${formatJPY(b.paid)} / 差額: ${netSign})\n`;
     });
 
-    text += `\n✅ 検証: 合計差額 0円ピッタリ (整合性保証)`;
+    const shareUrl = generateShareUrl();
+    text += `\n詳細確認: ${shareUrl}`;
     return text;
   };
 
-  // AI用プロンプト・APIリクエストJSONの生成
-  const generateAiJson = () => {
-    return JSON.stringify(request, null, 2);
-  };
-
-  const copyToClipboard = async (text: string, type: 'line' | 'ai' | 'url') => {
+  const copyToClipboard = async (text: string, type: 'line' | 'url') => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedType(type);
@@ -94,27 +111,27 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Main Results Card: Minimum Transfers */}
       <div className="bg-gradient-to-b from-white to-indigo-50/20 rounded-2xl p-5 sm:p-6 border border-indigo-200/80 shadow-md shadow-indigo-100/40">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-indigo-100">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                最終送金指示リスト
+                送金リスト
               </h2>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                送金回数 最適化済
+                最小 {transfers.length} 回で完了
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              複雑な貸し借りを整理し、最も少ない回数（全{transfers.length}回）で全員が精算完了します
+              最小限の送金回数で全員の精算が完了します
             </p>
           </div>
 
           <div className="text-right">
-            <span className="text-[11px] text-slate-400 block">総送金ボリューム</span>
+            <span className="text-[11px] text-slate-400 block">送金総額</span>
             <span className="text-sm font-semibold text-slate-700">
               {formatJPY(verification.totalTransferAmount)}
             </span>
@@ -187,7 +204,7 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
             type="button"
             onClick={() => copyToClipboard(generateShareUrl(), 'url')}
             className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition shadow-2xs"
-            title="Gemini等のWeb検索AIやLINE共有に使えるGET URL"
+            title="結果画面の共有リンクをコピー"
           >
             {copiedType === 'url' ? (
               <>
@@ -197,57 +214,10 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
             ) : (
               <>
                 <Link2 className="w-4 h-4 text-indigo-700" />
-                <span>Gemini/共有用URLをコピー</span>
+                <span>共有用URLをコピー</span>
               </>
             )}
           </button>
-        </div>
-      </div>
-
-      {/* Mathematical Verification Proof Card */}
-      <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-md">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-            <ShieldCheck className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              数学的整合性の検証データ（Verification）
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                100% Balanced
-              </span>
-            </h3>
-            <p className="text-[11px] text-slate-400">
-              全員の受け取る額と支払う額の合計がピッタリ0円であることを証明
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
-          <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/60">
-            <span className="text-slate-400 block text-[11px]">立替総額</span>
-            <span className="text-sm font-bold text-slate-100">
-              {formatJPY(verification.totalPaid)}
-            </span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/60">
-            <span className="text-slate-400 block text-[11px]">負担総額</span>
-            <span className="text-sm font-bold text-slate-100">
-              {formatJPY(verification.totalShare)}
-            </span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/60">
-            <span className="text-slate-400 block text-[11px]">純残高合計 (Net)</span>
-            <span className="text-sm font-bold text-emerald-400">
-              {verification.sumNetBalance} 円 (完全一致)
-            </span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/60">
-            <span className="text-slate-400 block text-[11px]">最適化送金回数</span>
-            <span className="text-sm font-bold text-indigo-300">
-              {verification.transferCount} 回
-            </span>
-          </div>
         </div>
       </div>
 
@@ -264,10 +234,10 @@ export function ResultDisplay({ request, response, error }: ResultDisplayProps) 
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900">
-                計算根拠・明細内訳（なぜこの金額になったか）
+                各自の負担内訳
               </h3>
               <p className="text-xs text-slate-500">
-                メンバーごとの立替・負担・差額・適用された条件の内訳
+                メンバーごとの立替額・負担額・差額の一覧
               </p>
             </div>
           </div>
