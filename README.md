@@ -1,7 +1,7 @@
 # warikaru (割軽)
 
-> **AIの計算ミスを防ぐ、高信頼な決定論的割り勘・精算エンジン**  
-> AIエージェント向け規格（`llm.txt` / API Routes）× TypeScript高精度計算エンジン × 人間用モダンWeb UI
+> **最小の送金回数でスッキリ割り勘・精算**  
+> AIの計算ミス（ハルシネーション）を防ぐ GETファーストな精算エンジン × モダンWeb UI
 
 [![Next.js](https://img.shields.io/badge/Next.js-16_App_Router-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?logo=typescript)](https://www.typescriptlang.org/)
@@ -10,15 +10,18 @@
 
 ---
 
-## 💡 プロジェクトの背景・目的
+## 💡 プロジェクトの背景：なぜ「GETファースト」なのか？
 
-大規模言語モデル（Claude, ChatGPT, Gemini等）は自然言語からの状況整理や条件抽出には優れているものの、**多人数間の割り勘計算、複雑な傾斜配分、端数処理、およびグラフ理論に基づく最小送金回数の最適化**において、高頻度で暗算ミスや不整合（ハルシネーション）を発生させます。
+### 1. LLMの計算ミスとPOSTの限界
+ChatGPTやGeminiなどのLLMは、複数人の割り勘・傾斜配分・端数調整・送金回数の最適化において暗算ミスを高頻度で起こします。  
+しかし、**ChatGPT等のWebブラウジング機能は HTTP POST リクエストを送信できません（GETのみ対応）**。そのため、従来の「POST API」を用意しても、チャットAIのブラウジングツールからは呼び出せずエラーになっていました。
 
-**warikaru** は、以下の役割分担によって「計算ミスゼロの割り勘体験」を実現します：
+### 2. warikaru の解決策（GET-First & Web Browsing 最適化）
+warikaru は、**URLクエリパラメータ（GET）のみで全条件を受け付け、HTML結果画面（`/result`）を瞬時に返す設計**を採用しています。
 
-1. **AIの役割**: 自然言語の文脈理解（誰が何をいくら払ったか、誰が遅刻したか、比率の把握など）
-2. **warikaru Engine (TypeScript) の役割**: 厳密な按分計算、端数調停（合計が厳密に一致することを数学的に証明）、最小送金回数の最適化
-3. **人間用インタラクティブUI**: ブラウザで直感的に操作・確認でき、LINE/SlackやAIプロンプトへ1タップ共有
+1. **AIの役割**: 自然言語から条件を抽出し、公式URL（`GET /result?...`）を組み立ててWeb閲覧ツールで開く。
+2. **warikaru の役割**: 厳密なアルゴリズムで計算し、確定結果をHTMLで描画。
+3. **人間への還元**: AIの回答末尾に「確定結果画面のURL」が添えられるため、ユーザーはChatGPTの外でも1タップで確認・微調整できる。
 
 ---
 
@@ -27,71 +30,103 @@
 - **Framework**: Next.js 16 (App Router / React 19)
 - **Language**: TypeScript (Strict Mode)
 - **Styling**: Tailwind CSS v4, Lucide React (Icons)
-- **Design System**: 白とインディゴ・ブルー基調のクリーン・信頼感あふれるモダンUI
-- **Deployment**: Vercel (Edge / Serverless 対応)
+- **Architecture**: GET-First SSR（サーバーサイドレンダリング） + クライアント即時計算
+- **Deployment**: Vercel
 
 ---
 
-## 📂 主要機能とファイル構造
+## 📂 ディレクトリ構成
 
 ```
 warikaru/
 ├── public/
-│   └── llm.txt                 # AIエージェント向け規格仕様書 (Plain Text)
+│   └── llm.txt                 # AI向け規格仕様書 (GETパラメータ組み立て仕様)
 ├── app/
 │   ├── api/
 │   │   └── calculate/
-│   │       └── route.ts        # 精算計算APIエンドポイント (POST /api/calculate, CORS対応)
+│   │       └── route.ts        # GET / POST 両対応 計算API
+│   ├── result/
+│   │   └── page.tsx            # AIブラウジング & 共有用 HTML結果ページ
 │   ├── layout.tsx              # ルートレイアウト・メタデータ
-│   ├── page.tsx                # 人間用インタラクティブWeb UI
-│   └── globals.css             # Tailwind CSS スタイルシート
+│   ├── page.tsx                # インタラクティブWeb UI (URL復元対応)
+│   └── globals.css             # Tailwind CSS
 ├── lib/
-│   ├── types.ts                # TypeScript型定義 (Request, Response, Condition, etc.)
-│   ├── calculate.ts            # 精算計算エンジン（貪欲法・完全一致ヒューリスティックによる最小送金回数アルゴリズム）
-│   ├── presets.ts              # デモ用プリセットデータ（飲み会、ドライブ旅行、BBQ等）
-│   └── utils.ts                # フォーマット・スタイリングユーティリティ
+│   ├── types.ts                # 型定義 (Request, Response, Condition, etc.)
+│   ├── calculate.ts            # 精算計算エンジン（貪欲法・完全一致ヒューリスティック）
+│   ├── queryParser.ts          # URLクエリ解析（過剰エンコード安全デコード対応）
+│   ├── presets.ts              # サンプルデータ（飲み会、ドライブ旅行、BBQ等）
+│   └── utils.ts                # 通貨フォーマット等ユーティリティ
 └── components/
-    ├── Header.tsx              # ヘッダー（ロゴ、プリセット選択、llm.txtモーダル）
-    ├── FeatureBanner.tsx       # AI × 計算エンジン ハイブリッド解説バナー
-    ├── MemberManager.tsx       # メンバー動的追加・削除
-    ├── PaymentManager.tsx      # 立替・支払い管理（個別参加トグル対応）
-    ├── ConditionManager.tsx    # 柔軟な条件設定（除外・比率/重み・固定割引）
+    ├── Header.tsx              # ヘッダー（ロゴ、サンプル選択）
+    ├── MemberManager.tsx       # メンバー管理
+    ├── PaymentManager.tsx      # 立替・支払い管理（個別参加トグル）
+    ├── ConditionManager.tsx    # 条件設定（比率・除外・固定割引）
     ├── RoundingManager.tsx     # 端数丸め設定（1円、10円、100円、1000円）
-    ├── ResultDisplay.tsx       # 最小送金リスト、数学的整合性検証、共有ボタン
-    ├── BreakdownTable.tsx      # 計算根拠・詳細内訳テーブル
-    └── LlmSpecModal.tsx        # llm.txt 仕様書＆APIドキュメントモーダル
+    ├── ResultDisplay.tsx       # 送金リスト、LINE/Slackコピー、共有URLコピー
+    ├── BreakdownTable.tsx      # 各自の負担内訳テーブル
+    └── LlmSpecModal.tsx        # API仕様書モーダル
 ```
 
 ---
 
-## 🤖 1. AIエージェント向け仕様ファイル (`/public/llm.txt`)
+## 🤖 AI（ChatGPT / Gemini）からの利用方法
 
-Claude, ChatGPT, MCP (Model Context Protocol) ツール等がアクセスした際に、一瞬で計算APIの呼び出し方と仕様を把握できるプレーンテキスト仕様書です。
+プロンプトに `https://warikaru.vercel.app/llm.txt` のURLを含めて依頼するだけで、AIが仕様を読み込み、公式結果URLを組み立てて確定精算を行います。
 
-- **URL**: `https://<domain>/llm.txt`
-- **内容**:
-  - アプリの目的とアーキテクチャ
-  - POST `/api/calculate` の完全なJSONスキーマ
-  - 条件設定（exclude, weight, fixed_discount）の仕様
-  - 最小送金回数アルゴリズム（グラフ理論）の説明
-  - AIシステムプロンプトの指示文・Function Calling例
+### プロンプト例:
+```text
+https://warikaru.vercel.app/llm.txt
+このURLの仕様書をWebブラウジングして読み込んで、以下の割り勘を計算してください！
+
+【支払いのメモ】
+・Aさんが居酒屋 12,000円を立替
+・Bさんがタクシー 3,000円を立替
+・参加者はAさん、Bさん、Cさんの3人
+・Cさんはタクシーに乗っていないため除外
+・Aさんは上司なので1.5倍負担
+・Cさんは遅刻したため1,000円引き
+・100円単位で丸め
+
+最小送金リスト、各自の内訳、LINE用メッセージ、そして【計算結果画面へのリンク】を出力してください！
+```
+
+AIは仕様書に基づき以下のURLを組み立ててWeb閲覧し、正確な数値を返します：
+```
+https://warikaru.vercel.app/result?members=A,B,C&payments=A:12000:居酒屋,B:3000:タクシー&exclude=C:タクシー&weight=A:1.5&discount=C:1000&unit=100
+```
 
 ---
 
-## ⚡ 2. 精算計算APIエンドポイント (`POST /api/calculate`)
+## ⚡ エンドポイント仕様
 
-### リクエスト例:
+### 1. 結果確認・AIブラウジング用（推奨・GET）
+`GET /result?members=...&payments=...`
+
+- **用途**: ChatGPT等のWeb閲覧ツール、または人間がLINE等からリンクを開く場合
+- **形式**: レスポンシブHTML（送金リスト、内訳、LINE用テキスト、「アプリで微調整」ボタン）
+
+### 2. 軽量テキスト・JSON API（GET）
+`GET /api/calculate?members=...&format=text` または `format=json`
+
+- ブラウザでそのまま開いた場合は自動的に `/result` へリダイレクトされます。
+- `format=text` を指定するとプレーンテキストで計算結果を返します。
+
+### 3. プログラム連携用 API（POST）
+`POST /api/calculate` (Content-Type: `application/json`)
+
+- **用途**: curl や外部バックエンドプログラムからの直接呼び出し（※ チャットAIのWebブラウジングでは使用不可）
+- リクエスト例:
 ```json
 {
-  "members": ["Aさん", "Bさん", "Cさん"],
+  "members": ["A", "B", "C"],
   "payments": [
-    { "paidBy": "Aさん", "amount": 12000, "description": "一次会（居酒屋）" },
-    { "paidBy": "Bさん", "amount": 3000, "description": "タクシー代" }
+    { "paidBy": "A", "amount": 12000, "description": "居酒屋" },
+    { "paidBy": "B", "amount": 3000, "description": "タクシー" }
   ],
   "conditions": [
-    { "type": "exclude", "member": "Cさん", "description": "タクシー乗っていないためタクシー代から除外" },
-    { "type": "weight", "member": "Aさん", "weight": 1.5, "description": "幹事のため1.5倍" },
-    { "type": "fixed_discount", "member": "Cさん", "amount": 1000, "description": "遅刻のため1,000円引" }
+    { "type": "exclude", "member": "C", "paymentDescription": "タクシー" },
+    { "type": "weight", "member": "A", "weight": 1.5 },
+    { "type": "fixed_discount", "member": "C", "amount": 1000 }
   ],
   "options": {
     "roundingUnit": 100,
@@ -100,55 +135,22 @@ Claude, ChatGPT, MCP (Model Context Protocol) ツール等がアクセスした�
 }
 ```
 
-### レスポンス例:
-```json
-{
-  "success": true,
-  "transfers": [
-    { "from": "Cさん", "to": "Aさん", "amount": 2400 },
-    { "from": "Bさん", "to": "Aさん", "amount": 2100 }
-  ],
-  "breakdown": [
-    {
-      "member": "Aさん",
-      "paid": 12000,
-      "share": 7500,
-      "net": 4500,
-      "rawShare": 7442.86,
-      "paymentDetails": [ ... ],
-      "appliedConditions": [ "[一次会（居酒屋）] 比率: 1.5倍 (幹事のため1.5倍)" ]
-    },
-    ...
-  ],
-  "verification": {
-    "totalPaid": 15000,
-    "totalShare": 15000,
-    "sumNetBalance": 0,
-    "totalTransferAmount": 4500,
-    "transferCount": 2,
-    "isBalanced": true,
-    "isComplete": true,
-    "algorithm": "Greedy Minimum Cash Flow with Exact-Match Heuristic"
-  }
-}
-```
+---
+
+## 🧮 最小送金回数アルゴリズム
+
+全員の貸し借りを整理し、**最小の送金回数（高々 $N-1$ 回以内）**に圧縮します。
+
+1. **Exact-Match Heuristic（完全一致相殺）**:  
+   支払うべき金額と受け取るべき金額が完全に一致するペアを見つけ、1回の直接送金で即座に清算。
+2. **Greedy Cash Flow Optimization（最大残高マッチング）**:  
+   最大の債務者と最大の債権者をマッチングし、$\min(\text{credit}, \text{debt})$ を送金。全員の残高がゼロになるまで反復。
+3. **端数補正（Zero-Sum 保証）**:  
+   丸め処理によって発生する端数のズレを、設定されたターゲット（最高負担者等）に自動集約し、全体の差額合計が厳密に $\pm 0$ 円となるよう整合性を保持。
 
 ---
 
-## 🧮 3. 最小送金回数アルゴリズムの仕組み
-
-$N$ 人のメンバー間で素朴に精算を行うと、最大 $\frac{N(N-1)}{2}$ 回の送金が発生する恐れがあります。  
-warikaru は以下の2段階最適化を行い、**高々 $N-1$ 回以内（多くはさらに少ない回数）**に圧縮します：
-
-1. **Exact-Match Heuristic（完全一致ペアの即時相殺）**:
-   - ある債務者の支払額とある債権者の受取額が完全に一致する場合、直接1回の送金で両者をゼロに解消。
-2. **Greedy Cash Flow Optimization（貪欲マッチング）**:
-   - 残った債務者（最大額）と債権者（最大額）をマッチングし、$\min(\text{credit}, \text{debt})$ を送金。
-   - いずれかの残高が0になり、全員の残高が解消されるまで反復。
-
----
-
-## 🚀 開発・起動手順
+## 🚀 ローカル起動手順
 
 ```bash
 # 依存関係のインストール
@@ -157,16 +159,9 @@ npm install
 # 開発サーバー起動
 npm run dev
 
-# プロダクションビルド & 起動
+# プロダクションビルド
 npm run build
 npm run start
 ```
 
 ブラウザで `http://localhost:3000` を開きます。
-
----
-
-## 🚢 Vercel へのデプロイ
-
-リポジトリを GitHub に push し、Vercel ダッシュボードから「Import Project」を行うだけで即座にデプロイ完了します。
-特別な環境変数は不要です。
