@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { FeatureBanner } from '@/components/FeatureBanner';
 import { MemberManager } from '@/components/MemberManager';
@@ -11,6 +11,7 @@ import { ResultDisplay } from '@/components/ResultDisplay';
 import { LlmSpecModal } from '@/components/LlmSpecModal';
 import { CalculateRequest, Condition, Payment, CalculateOptions } from '@/lib/types';
 import { calculateSettlement } from '@/lib/calculate';
+import { parseQueryToCalculateRequest } from '@/lib/queryParser';
 import { PRESETS, Preset } from '@/lib/presets';
 import { Code } from 'lucide-react';
 
@@ -29,6 +30,29 @@ export default function HomePage() {
 
   const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
   const [showJsonView, setShowJsonView] = useState(false);
+
+  // URLにパラメータが付与されている場合（ChatGPTのリンクから飛んできた場合など）、自動で復元する
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search && window.location.search.length > 1) {
+      try {
+        const parsed = parseQueryToCalculateRequest(window.location.search);
+        if (parsed.members && parsed.members.length > 0) {
+          setMembers(parsed.members);
+        }
+        if (parsed.payments && parsed.payments.length > 0) {
+          setPayments(parsed.payments);
+        }
+        if (parsed.conditions) {
+          setConditions(parsed.conditions);
+        }
+        if (parsed.options) {
+          setOptions(parsed.options);
+        }
+      } catch (e) {
+        console.error('Failed to parse query params', e);
+      }
+    }
+  }, []);
 
   // リクエストオブジェクト
   const currentRequest: CalculateRequest = useMemo(() => {

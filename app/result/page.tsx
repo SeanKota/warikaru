@@ -147,6 +147,23 @@ ${result.breakdown.map((b) => `・${b.member}: 負担額 ${formatJPY(b.share)} (
 `}
         </pre>
       </section>
+
+      {/* Action Button: Edit in interactive app */}
+      <div className="pt-2 flex flex-col sm:flex-row gap-3">
+        <a
+          href={`/?${urlSearchParams.toString()}`}
+          className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm"
+        >
+          <span>この精算をwarikaruアプリで編集・微調整する</span>
+          <ArrowRight className="w-4 h-4" />
+        </a>
+        <a
+          href="/"
+          className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition"
+        >
+          新規計算を開く
+        </a>
+      </div>
     </div>
   );
 }
