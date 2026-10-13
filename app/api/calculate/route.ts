@@ -76,19 +76,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // クエリパラメータがない場合は API仕様ドキュメントを返却
+  // クエリパラメータがない場合は、AIやブラウザ向けにGET URLの組み立て方を明快に案内
   return NextResponse.json(
     {
-      name: 'warikaru API',
-      version: '1.2.0',
-      description: 'AI-agent-ready high-precision bill splitting and settlement engine (Supports GET, POST, and /result HTML page)',
-      specification: '/llm.txt',
-      htmlResultPage: '/result?members=... (AI Web Browsing Tool & Human Friendly)',
-      methods: ['GET', 'POST'],
-      getUsageExamples: [
-        'GET /result?members=Aさん,Bさん,Cさん&payments=Aさん:12000:居酒屋,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100',
-        'GET /api/calculate?members=Aさん,Bさん,Cさん&payments=Aさん:12000:一次会,Bさん:3000:タクシー&exclude=Cさん:タクシー&weight=Aさん:1.5&discount=Cさん:1000&unit=100&format=text',
-      ],
+      notice: 'パラメータが付与されていません。このURLの末尾にクエリパラメータを付与するか、以下の /result ページをブラウジングしてください。',
+      instructionForAI: 'AIアシスタントへ: ユーザーの条件からクエリを組み立て、以下のURLを開いて計算結果を取得してください。',
+      recommendedUrlFormat: 'https://warikaru.vercel.app/result?members={名前一覧}&payments={支払者:金額:名目}&discount={割引対象:金額}&unit=100',
+      exampleUrl: 'https://warikaru.vercel.app/result?members=A,B,C&payments=A:4000,B:3000&discount=C:500&unit=100',
+      specification: 'https://warikaru.vercel.app/llm.txt',
     },
     { headers: corsHeaders }
   );
